@@ -186,7 +186,7 @@ router.post('/refresh', async (req: Request, res: Response) => {
     return res.status(401).json({ success: false, error: 'User not found' });
   }
   const refresh = signToken(
-    { sub: String(user._id), type: 'access', roles: user.roles },
+    { sub: String(user._id), type: 'access', roles: user.roles, isEmailVerified: user.isEmailVerified, },
     ACCESS_TTL_SEC
   );
   return res.json({ refreshToken: refresh.token });

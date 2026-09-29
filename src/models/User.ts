@@ -30,6 +30,7 @@ export interface JwtProps {
   exp: number;
   type: TokenType;
   roles: Role[];
+  isEmailVerified: boolean;
   jti: string;
 }
 

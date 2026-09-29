@@ -58,8 +58,14 @@ export const authService = {
 };
 export async function generateTokens(user: IUser) {
   const sub = String(user.id ?? user._id);
-  const access = signToken({ sub, type: 'access', roles: user.roles }, ACCESS_TTL_SEC);
-  const refresh = signToken({ sub, type: 'refresh', roles: user.roles }, REFRESH_TTL_SEC);
+  const access = signToken(
+    { sub, type: 'access', roles: user.roles, isEmailVerified: user.isEmailVerified },
+    ACCESS_TTL_SEC
+  );
+  const refresh = signToken(
+    { sub, type: 'refresh', roles: user.roles, isEmailVerified: user.isEmailVerified },
+    REFRESH_TTL_SEC
+  );
   await RefreshToken.create({
     jti: refresh.payload.jti,
     userId: user._id,

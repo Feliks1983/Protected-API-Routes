@@ -128,7 +128,7 @@ router.put(
 
       if (!Number.isInteger(id)) {
         return res
-          .status(400)
+          .status(404)
           .json({ success: false, error: 'INVALID_ID', message: 'Invalid todo id' });
       }
 

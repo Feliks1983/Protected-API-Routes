@@ -28,7 +28,7 @@ export const sendVerificationEmail = async (email: string, token: string): Promi
 };
 
 export function signToken(
-  input: { sub: string; type: TokenType; roles: Role[] },
+  input: { sub: string; type: TokenType; roles: Role[]; isEmailVerified: boolean },
   ttlSec: number
 ): { token: string; payload: JwtProps } {
   const iat = Math.floor(Date.now() / 1000);

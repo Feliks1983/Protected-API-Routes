@@ -29,7 +29,7 @@ router.get(
           .json({ success: false, error: 'UNAUTHORIZED', message: 'Unauthorized' });
       }
 
-      const result = getTodos({
+      const result = await getTodos({
         userId: req.user?.id,
         page,
         limit,
@@ -40,10 +40,10 @@ router.get(
       res.status(200).json({
         success: true,
         data: {
-          items: result.todos,
-          page: result.page,
-          limit: result.limit,
-          total: result.total,
+          items: (await result).todos,
+          page: (await result).page,
+          limit: (await result).limit,
+          total: (await result).total,
         },
         message: 'Todos retrieved successfully',
       });
@@ -57,7 +57,7 @@ router.get(
   requireEmailVerified,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const stats = getStats(req.user?.id);
+      const stats = await getStats(req.user?.id as string);
 
       res.json({
         success: true,
@@ -101,7 +101,7 @@ router.post(
     }
 
     try {
-      const todo = createTodo({
+      const todo = await createTodo({
         text: req.body.text,
         priority: req.body.priority,
         category: req.body.category,
@@ -124,7 +124,7 @@ router.put(
   requireEmailVerified,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const id = Number(req.params.id);
+      const id = String(req.params.id);
 
       if (!Number.isInteger(id)) {
         return res
@@ -132,7 +132,7 @@ router.put(
           .json({ success: false, error: 'INVALID_ID', message: 'Invalid todo id' });
       }
 
-      const todo = updateTodo(id, String(req.user?.id), {
+      const todo = await updateTodo(id, String(req.user?.id), {
         text: req.body.text,
         completed: req.body.completed,
         priority: req.body.priority,
@@ -162,7 +162,7 @@ router.delete(
   requireEmailVerified,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const id = Number(req.params.id);
+      const id = String(req.params.id);
 
       if (!Number.isInteger(id)) {
         return res
@@ -170,7 +170,7 @@ router.delete(
           .json({ success: false, error: 'INVALID_ID', message: 'Invalid todo id' });
       }
 
-      const deleted = deleteTodo(id, req.user?.id);
+      const deleted = await deleteTodo(id, req.user?.id as string);
 
       if (!deleted) {
         return res.status(404).json({

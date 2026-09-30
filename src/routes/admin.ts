@@ -161,7 +161,7 @@ router.get('/statistics', async (req: Request, res: Response) => {
     const [usersByRole, usersByStatus, todoStats] = await Promise.all([
       User.aggregate([{ $group: { _id: '$roles', count: { $sum: 1 } } }]),
       User.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
-      getGlobalStats(),
+      await getGlobalStats(),
     ]);
 
     res.status(200).json({
@@ -191,7 +191,7 @@ router.get('/users/:id/todos', async (req: Request, res: Response): Promise<void
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 10;
 
-    const result = getTodos({ userId: id, page, limit });
+    const result = await getTodos({ userId: id, page, limit });
 
     res.status(200).json({
       success: true,

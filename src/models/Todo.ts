@@ -1,4 +1,4 @@
-import mongoose, { model, Schema, ObjectId } from 'mongoose';
+import mongoose, { model, Schema, Types } from 'mongoose';
 
 export enum Priority {
   Low = 'low',
@@ -130,68 +130,71 @@ const todoSchema = new Schema<Todo>(
   },
   {
     timestamps: true,
+    toJSON: {
+      transform: (_doc, ret: any) => {
+        ret.id = ret._id.toString();
+        delete ret._id;
+        delete ret.__v;
+        return ret;
+      },
+    },
   }
 );
 
 todoSchema.index({ userId: 1, createdAt: -1 });
 todoSchema.index({ userId: 1, completed: 1 });
-export const Todo = model<Todo>('Todo', todoSchema);
+export const TodoModel = model('Todo', todoSchema);
 export const todoService: TodoService = {} as TodoService;
 
-let todos: Todo[] = [];
-let nextId = 1;
+let todos = (doc: any): Todo => ({
+  id: doc._id.toString(),
+  text: doc.text,
+  completed: doc.completed,
+  createdAt: doc.createdAt,
+  updatedAt: doc.updatedAt,
+  priority: doc.priority,
+  category: doc.category,
+  dueDate: doc.dueDate,
+  userId: doc.userId,
+});
 
 const isOverdue = (todo: Todo): boolean =>
   !todo.completed && !!todo.dueDate && todo.dueDate.getTime() < Date.now();
 
-export const getTodos = (
+export const getTodos = async(
   options: TodoQuery = {}
-): PaginatedResult => {
+): Promise<PaginatedResult> => {
   const { userId, page = 1, limit = 10, completed, priority, search, category } = options;
 
-  let filtered = [...todos];
+  let filtered: Record<string, any> = {};
 
-   if (userId !== undefined) {
-     filtered = filtered.filter(todo => todo.userId === userId);
-   }
+    if (userId !== undefined) filtered.userId = userId;
+    if (completed !== undefined) filtered.completed = completed;
+    if (priority !== undefined) filtered.priority = priority;
+    if (category !== undefined) filtered.category = category.trim();
+    if (search) filtered.text = { $regex: search.trim(), $options: 'i' };
 
-  if (completed !== undefined) {
-    filtered = filtered.filter(todo => todo.completed === completed);
-  }
+  const [docs, total] = await Promise.all([
+    TodoModel.find(filtered)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit),
+    TodoModel.countDocuments(filtered),
+  ]);
 
-  if (priority !== undefined) {
-    filtered = filtered.filter(todo => todo.priority === priority);
-  }
-
-  if (category !== undefined) {
-    const categorySearch = category.trim().toLowerCase();
-
-    filtered = filtered.filter(todo => todo.category?.toLowerCase() === categorySearch);
-  }
-
-  if (search) {
-    const searchText = search.trim().toLowerCase();
-
-    filtered = filtered.filter(todo => todo.text.toLowerCase().includes(searchText));
-  }
-
-  const total = filtered.length;
-  const start = (page - 1) * limit;
-  const paginatedTodos = filtered.slice(start, start + limit);
-
-  return { todos: paginatedTodos, total, page, limit };
+  return { todos: docs.map(todos), total, page, limit };
 };
 
-export const getTodoById = (id: number, userId?: string): Todo | null => {
-   const todo = todos.find(t => t.id === id);
-   if (!todo) return null;
-   if (userId !== undefined && todo.userId !== userId) return null;
-   return todo;
+export const getTodoById = async(id: string, userId?: string): Promise<Todo | null> => {
+   if (!Types.ObjectId.isValid(id)) return null;
+   const filtered: Record<string, any> = { _id: id };
+   if (userId !== undefined) filtered.userId = userId;
+   const doc = await TodoModel.findOne(filtered);
+   return doc ? todos(doc) : null;
 };
 
-export const createTodo = (input: CreateTodoInput): Todo => {
-  const todo: Todo = {
-    id: nextId++,
+export const createTodo = async(input: CreateTodoInput): Promise<Todo> => {
+  const todo = await TodoModel.create({
     text: input.text.trim(),
     completed: false,
     priority: input.priority || Priority.Medium,
@@ -199,64 +202,51 @@ export const createTodo = (input: CreateTodoInput): Todo => {
     dueDate: input.dueDate ? new Date(input.dueDate) : undefined,
     createdAt: new Date(),
     userId: input.userId,
-  };
-  todos.push(todo);
-  return todo;
+  });
+
+  return todos(todo);
 };
 
-export const updateTodo = (id: number, userId: string, input: UpdateTodoInput): Todo | null => {
-  const todoIndex = todos.findIndex(todo => todo.id === id && todo.userId === userId);
+export const updateTodo = async(id: string, userId: string, input: UpdateTodoInput): Promise<Todo | null> => {
+  if (!Types.ObjectId.isValid(id)) return null;
 
-  if (todoIndex === -1) {
-    return null;
-  }
-  const todo = todos[todoIndex];
-
-  if (input.text !== undefined) {
-    todo.text = input.text.trim();
-  }
-
-  if (input.completed !== undefined) {
-    todo.completed = input.completed;
-  }
-
-  if (input.priority !== undefined) {
-    todo.priority = input.priority;
-  }
-
-  if (input.category !== undefined) {
-    todo.category = input.category.trim() || undefined;
-  }
-
+  const update: Record<string, any> = {};
+  if (input.text !== undefined) update.text = input.text.trim();
+  if (input.completed !== undefined) update.completed = input.completed;
+  if (input.priority !== undefined) update.priority = input.priority;
+  if (input.category !== undefined) update.category = input.category.trim() || undefined;
   if (input.dueDate !== undefined) {
-    todo.dueDate = input.dueDate ? new Date(input.dueDate) : undefined;
+    update.dueDate = input.dueDate ? new Date(input.dueDate) : undefined;
   }
-  todo.updatedAt = new Date();
-  return todo;
+
+  const doc = await TodoModel.findOneAndUpdate(
+    { _id: id, userId },
+    { $set: update },
+    { new: true, runValidators: true }
+  );
+  return doc ? todos(doc) : null;
 };
 
-export const deleteTodo = (id: number, user: any): boolean => {
-  const index = todos.findIndex(todo => todo.id === id);
-  if (index === -1) {
-    return false;
-  }
-  todos.splice(index, 1);
-  return true;
+export const deleteTodo = async(id: string, userId: string): Promise<boolean> => {
+ if (!Types.ObjectId.isValid(id)) return false;
+ const result = await TodoModel.deleteOne({ _id: id, userId });
+ return result.deletedCount === 1;
 };
 
-export const getStats = (userId: string | undefined): TodoStats => {
-   const own = todos.filter(todo => todo.userId === userId);
-   const total = own.length;
-   const completed = own.filter(todo => todo.completed).length;
-   const pending = total - completed;
-   const overdue = own.filter(isOverdue).length;
-   return { total, completed, pending, overdue };
+export const getStats = async(userId: string): Promise<TodoStats> => {
+   const [total, completed, overdue] = await Promise.all([
+     TodoModel.countDocuments({ userId }),
+     TodoModel.countDocuments({ userId, completed: true }),
+     TodoModel.countDocuments({ userId, ...isOverdue }),
+   ]);
+   return { total, completed, pending: total - completed, overdue };
 };
 
-export const getGlobalStats = (): TodoStats => {
-  const total = todos.length;
-  const completed = todos.filter(todo => todo.completed).length;
-  const pending = total - completed;
-  const overdue = todos.filter(isOverdue).length;
-  return { total, completed, pending, overdue };
+export const getGlobalStats = async(): Promise<TodoStats> => {
+  const [total, completed, overdue] = await Promise.all([
+    TodoModel.countDocuments({}),
+    TodoModel.countDocuments({ completed: true }),
+    TodoModel.countDocuments(isOverdue),
+  ]);
+  return { total, completed, pending: total - completed, overdue };
 };

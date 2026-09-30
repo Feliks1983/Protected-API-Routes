@@ -44,7 +44,6 @@ app.use((req, res, next) => {
 async function seed() {
   const users = [
     {
-      id: '1',
       emailOrUsername: 'user@example.com',
       username: 'user',
       password: 'Password123!',
@@ -53,7 +52,6 @@ async function seed() {
       lastName: 'User',
     },
     {
-      id: '2',
       emailOrUsername: 'admin@example.com',
       username: 'admin',
       password: 'Admin123!',
@@ -144,7 +142,9 @@ app.use((error: Error, req: Request, res: Response, next: NextFunction) => {
 
 async function start() {
   try {
-    await mongoose.connect(url as string);
+    await mongoose.connect(url as string, {
+      dbName: 'todoapp',
+    });
     await seed();
     app.listen(config.port, () => {
       console.log(`Server started on port ${config.port}`);

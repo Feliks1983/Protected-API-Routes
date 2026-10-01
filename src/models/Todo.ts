@@ -1,4 +1,4 @@
-import mongoose, { model, Schema, Types } from 'mongoose';
+import{ model, Schema, Types } from 'mongoose';
 
 export enum Priority {
   Low = 'low',

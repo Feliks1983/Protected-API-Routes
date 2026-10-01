@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { createTodo, deleteTodo, getStats, getTodos, Priority, updateTodo } from '../models/Todo';
 import { requireEmailVerified } from '../middleware/auth';
+import {isValidObjectId} from 'mongoose';
 
 export const router = Router();
 
@@ -40,10 +41,10 @@ router.get(
       res.status(200).json({
         success: true,
         data: {
-          items: (await result).todos,
-          page: (await result).page,
-          limit: (await result).limit,
-          total: (await result).total,
+          items: result.todos,
+          page: result.page,
+          limit: result.limit,
+          total: result.total,
         },
         message: 'Todos retrieved successfully',
       });
@@ -64,13 +65,7 @@ router.get(
         data: stats,
       });
     } catch (error) {
-      console.error('GET /todos/stats:', error);
-
-      return res.status(500).json({
-        success: false,
-        error: 'INTERNAL_SERVER_ERROR',
-        message: 'internal server error',
-      });
+      next(error);
     }
   }
 );
@@ -126,7 +121,7 @@ router.put(
     try {
       const id = String(req.params.id);
 
-      if (!Number.isInteger(id)) {
+      if (!isValidObjectId(id)) {
         return res
           .status(404)
           .json({ success: false, error: 'INVALID_ID', message: 'Invalid todo id' });
